@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.drive.opmode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.Range;
@@ -29,8 +30,10 @@ public class TeleOp extends LinearOpMode {
     public void runOpMode() throws InterruptedException {
         drive = new SampleMecanumDrive(hardwareMap);
         collector = hardwareMap.get(DcMotorEx.class, "frontEncoder");
-        shooter = hardwareMap.get(DcMotorEx.class, "leftEncoder");
-        wobble = hardwareMap.get(DcMotorEx.class, "w");
+        shooter = hardwareMap.get(DcMotorEx.class, "shooter");
+
+        shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        wobble = hardwareMap.get(DcMotorEx.class, "leftEncoder");
         launch = hardwareMap.get(Servo.class, "launch");
         ramp = hardwareMap.get(Servo.class, "ramp");
 
@@ -41,7 +44,7 @@ public class TeleOp extends LinearOpMode {
             manualDrive(0.9);
             moveRobot();
 
-            if (gamepad2.right_trigger > 0.3) {
+            if (gamepad2.right_trigger > 0.1) {
                 launch.setPosition(0);
             } else {
                 launch.setPosition(0.8);
@@ -66,7 +69,7 @@ public class TeleOp extends LinearOpMode {
             }
             lastResetState2 = curResetState2;
             if (toCollect) {
-                collector.setPower(1);
+                collector.setPower(-0.6);
             } else {
                 collector.setPower(-gamepad2.left_stick_y);
             }

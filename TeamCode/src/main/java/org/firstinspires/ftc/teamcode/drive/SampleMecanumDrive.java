@@ -35,6 +35,9 @@ import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
 
+import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
+import org.firstinspires.ftc.teamcode.util.AxesSigns;
+import org.firstinspires.ftc.teamcode.util.BNO055IMUUtil;
 import org.firstinspires.ftc.teamcode.util.DashboardUtil;
 import org.firstinspires.ftc.teamcode.util.LynxModuleUtil;
 import org.jetbrains.annotations.NotNull;
@@ -61,10 +64,10 @@ import static org.firstinspires.ftc.teamcode.drive.DriveConstants.kV;
  */
 @Config
 public class SampleMecanumDrive extends MecanumDrive {
-    public static PIDCoefficients TRANSLATIONAL_PID = new PIDCoefficients(0, 0, 0);
-    public static PIDCoefficients HEADING_PID = new PIDCoefficients(0, 0, 0);
+    public static PIDCoefficients TRANSLATIONAL_PID = new PIDCoefficients(3, 0, 0);
+    public static PIDCoefficients HEADING_PID = new PIDCoefficients(0.9, 0, 0);
 
-    public static double LATERAL_MULTIPLIER = 1;
+    public static double LATERAL_MULTIPLIER = 0.97959;
 
     public static double VX_WEIGHT = 1;
     public static double VY_WEIGHT = 1;
@@ -93,7 +96,7 @@ public class SampleMecanumDrive extends MecanumDrive {
 
     private LinkedList<Pose2d> poseHistory;
 
-    public DcMotorEx leftFront, leftRear, rightRear, rightFront;
+    public DcMotorEx leftFront, leftRear, rightRear, rightFront, shooter, wobble;
     private List<DcMotorEx> motors;
     private BNO055IMU imu;
 
@@ -120,7 +123,7 @@ public class SampleMecanumDrive extends MecanumDrive {
         ));
         accelConstraint = new ProfileAccelerationConstraint(MAX_ACCEL);
         follower = new HolonomicPIDVAFollower(TRANSLATIONAL_PID, TRANSLATIONAL_PID, HEADING_PID,
-                new Pose2d(0.5, 0.5, Math.toRadians(5.0)), 0.5);
+                new Pose2d(0.5, 0.5, Math.toRadians(2.0)), 0.5);
 
         poseHistory = new LinkedList<>();
 
@@ -132,20 +135,20 @@ public class SampleMecanumDrive extends MecanumDrive {
             module.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
         }
 
-        // TODO: adjust the names of the following hardware devices to match your configuration
-        imu = hardwareMap.get(BNO055IMU.class, "imu");
-        BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
-        parameters.angleUnit = BNO055IMU.AngleUnit.RADIANS;
-        imu.initialize(parameters);
-
-        // TODO: if your hub is mounted vertically, remap the IMU axes so that the z-axis points
+        // T ODO: if your hub is mounted vertically, remap the IMU axes so that the z-axis points
         // upward (normal to the floor) using a command like the following:
-        // BNO055IMUUtil.remapAxes(imu, AxesOrder.XYZ, AxesSigns.NPN);
 
         leftFront = hardwareMap.get(DcMotorEx.class, "leftFront");
         leftRear = hardwareMap.get(DcMotorEx.class, "leftRear");
         rightRear = hardwareMap.get(DcMotorEx.class, "rightRear");
         rightFront = hardwareMap.get(DcMotorEx.class, "rightFront");
+
+        shooter = hardwareMap.get(DcMotorEx.class, "shooter");
+        wobble = hardwareMap.get(DcMotorEx.class, "leftEncoder");
+
+        wobble.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         motors = Arrays.asList(leftFront, leftRear, rightRear, rightFront);
 
@@ -255,6 +258,8 @@ public class SampleMecanumDrive extends MecanumDrive {
         packet.put("xError", lastError.getX());
         packet.put("yError", lastError.getY());
         packet.put("headingError (deg)", Math.toDegrees(lastError.getHeading()));
+
+        packet.put("Shooter (vel)", shooter.getVelocity());
 
         switch (mode) {
             case IDLE:

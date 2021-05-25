@@ -40,7 +40,7 @@ public class TeleOp extends LinearOpMode {
     public static double DRIVE_SLOW_ROT_SPEED = 0.35;
     public static double TRANS_SPEED = DRIVE_TRANS_SPEED;
     public static double ROT_SPEED = DRIVE_ROT_SPEED;
-    public static int SHOOT_POWER = 2580;
+    public static int SHOOT_POWER = 1800;
     public static int SHOOT_DELAY = 800;
     public static int SERVO_DELAY = 400;
     public static double COLLECTOR_POWER = 0.75;

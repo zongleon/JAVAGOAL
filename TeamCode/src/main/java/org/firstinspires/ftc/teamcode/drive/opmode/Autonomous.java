@@ -33,11 +33,13 @@ import android.os.Build;
 import androidx.annotation.RequiresApi;
 
 import com.acmerobotics.dashboard.config.Config;
+import com.acmerobotics.roadrunner.drive.Drive;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.trajectory.Trajectory;
 import com.qualcomm.ftccommon.SoundPlayer;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import java.util.List;
@@ -47,6 +49,7 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
 import org.firstinspires.ftc.robotcore.external.tfod.TFObjectDetector;
 import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
+import org.firstinspires.ftc.teamcode.drive.DriveConstants;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 
 /**
@@ -67,11 +70,13 @@ public class Autonomous extends LinearOpMode {
     private static final String LABEL_SECOND_ELEMENT = "Single";
     private Servo launch, ramp, snatch;
 
+    DcMotorEx collector;
+
     private SampleMecanumDrive drive;
     private String zone = "UNKNOWN";
 
     public static double ZOOM = 4;
-    public static double RAMP_LAUNCH = 0.677;
+    public static double RAMP_LAUNCH = 0.68;
     public static double START_X = -64;
     public static double START_Y = 48;
     Pose2d startPose = new Pose2d(START_X, START_Y, 0);
@@ -81,13 +86,16 @@ public class Autonomous extends LinearOpMode {
     public static double B1_Y = 60;
     public static double B2_X = 16;
     public static double B2_Y = 52;
-    public static double conf = 0.8f;
+    public static double conf = 0.82f;
     public static double B4_C4_X = 0;
     public static double B4_C4_Y = 18;
-    public static double C1_X = 0;
-    public static double C1_Y = 58;
-    public static double C2_X = 40;
-    public static double C2_Y = 50;
+    public static double C1_X = -10;
+    public static double C1_Y = 60;
+    public static double C2_X = 48;
+    public static double C2_Y = 56;
+    public static double COLLECTOR_POWER = -0.75;
+    public static double DISTANCE_BACK = 18;
+    public static double PERCENT_SPEED = 0.15;
     public static double F_OFFSET_X = -4;
     public static double F_OFFSET_Y = -4;
     public static double R_X = -37;
@@ -96,9 +104,12 @@ public class Autonomous extends LinearOpMode {
     public static double SNATCH_RELEASE = 1.0;
     public static double SHOOT_X = -5;
     public static double SHOOT_Y = 30;
+    public static double POWER = 1800;
+    public static double HIGH_GOAL_X = -5;
+    public static double HIGH_GOAL_Y = 40;
     public static double SHOOT_THETA_A = 0;
     public static double SHOOT_THETA_B = -9;
-    public static double SHOOT_THETA_C = -7;
+    public static double SHOOT_THETA_C = 0;
     public static double PARK_X = 10;
     public static double PARK_Y = 35;
     public static double SHOOT_DELTA = 6.5;
@@ -107,8 +118,9 @@ public class Autonomous extends LinearOpMode {
     public static double WOBBLE_Y_OFFSET_A = 3;
     public static double WOBBLE_Y_OFFSET_B = 2;
     public static double WOBBLE_Y_OFFSET_C = 1;
-    public static int SHOOT_OFFSET = 850;
-    public static int ACTION_DELAY = 600;
+    public static int SHOOT_OFFSET = 375;
+    public static int WINDUP_OFFSET = 1500;
+    public static int ACTION_DELAY = 300;
 
     /*
      * IMPORTANT: You need to obtain your own license key to use Vuforia. The string below with which
@@ -148,6 +160,7 @@ public class Autonomous extends LinearOpMode {
         launch = hardwareMap.get(Servo.class, "launch");
         ramp = hardwareMap.get(Servo.class, "ramp");
         snatch = hardwareMap.get(Servo.class, "snatch");
+        collector = hardwareMap.get(DcMotorEx.class, "frontEncoder");
         launch.setPosition(0.8);
         ramp.setPosition(RAMP_LAUNCH);
         snatch.setPosition(SNATCH_GRAB);
@@ -180,7 +193,7 @@ public class Autonomous extends LinearOpMode {
                 List<Recognition> updatedRecognitions = tfod.getUpdatedRecognitions();
                 if (updatedRecognitions != null) {
                     telemetry.addData("# Object Detected", updatedRecognitions.size());
-                    if (updatedRecognitions.size() == 0 && System.currentTimeMillis() > start + 4000) {
+                    if (updatedRecognitions.size() == 0 && System.currentTimeMillis() > start + 4500) {
                         // empty list.  no objects recognized.
                         zone = "A";
                         telemetry.addData("TFOD", "No items detected.");
@@ -300,10 +313,21 @@ public class Autonomous extends LinearOpMode {
                         .build();
                 Trajectory traj2c = drive.trajectoryBuilder(traj1c.end())
                         .addDisplacementMarker(this::windup)
-                        .splineToLinearHeading(new Pose2d(SHOOT_X, SHOOT_Y,Math.toRadians(SHOOT_THETA_C)), Math.toRadians(180))
+                        .splineToLinearHeading(new Pose2d(HIGH_GOAL_X, HIGH_GOAL_Y, Math.toRadians(SHOOT_THETA_C)), Math.toRadians(180))
                         .build();
 
-                Trajectory traj3c = drive.trajectoryBuilder(new Pose2d(SHOOT_X, SHOOT_Y - SHOOT_DELTA - SHOOT_DELTA), Math.toRadians(180))
+                Trajectory traj6c = drive.trajectoryBuilder(traj2c.end())
+                        .addDisplacementMarker(this::startCollect)
+                        .back(DISTANCE_BACK,
+                                SampleMecanumDrive.getVelocityConstraint(DriveConstants.MAX_VEL * PERCENT_SPEED, DriveConstants.MAX_ANG_VEL, DriveConstants.TRACK_WIDTH),
+                                SampleMecanumDrive.getAccelerationConstraint(DriveConstants.MAX_ACCEL))
+                        .build();
+                Trajectory traj7c = drive.trajectoryBuilder(traj6c.end())
+                        .addDisplacementMarker(this::windup)
+                        .addDisplacementMarker(this::stopCollect)
+                        .forward(DISTANCE_BACK)
+                        .build();
+                Trajectory traj3c = drive.trajectoryBuilder(traj7c.end(), Math.toRadians(180))
                         .splineToConstantHeading(new Vector2d(R_X, R_Y + WOBBLE_Y_OFFSET_C), Math.toRadians(180))
                         .build();
                 Trajectory traj4c = drive.trajectoryBuilder(new Pose2d(R_X, R_Y + WOBBLE_Y_OFFSET_C), Math.toRadians(0))
@@ -319,7 +343,10 @@ public class Autonomous extends LinearOpMode {
                 drive.followTrajectory(traj1c);
                 deliver();
                 drive.followTrajectory(traj2c);
-                shoot();
+                shootHighs();
+                drive.followTrajectory(traj6c);
+                drive.followTrajectory(traj7c);
+                shootHighs();
                 drive.followTrajectory(traj3c);
                 grab();
                 drive.followTrajectory(traj4c);
@@ -331,7 +358,13 @@ public class Autonomous extends LinearOpMode {
                 break;
         }
 
+    }
 
+    void startCollect() {
+        collector.setPower(COLLECTOR_POWER);
+    }
+    void stopCollect() {
+        collector.setPower(0);
     }
 
     void deliver() {
@@ -353,7 +386,30 @@ public class Autonomous extends LinearOpMode {
     }
 
     void windup() {
-        drive.shooter.setVelocity(2580);
+        drive.shooter.setVelocity(POWER);
+    }
+
+    void shootHighs() {
+
+        launch.setPosition(0);
+        sleep(SHOOT_OFFSET);
+        launch.setPosition(0.8);
+        sleep(SHOOT_OFFSET);
+
+        launch.setPosition(0);
+        sleep(SHOOT_OFFSET);
+        launch.setPosition(0.8);
+        sleep(SHOOT_OFFSET);
+
+        launch.setPosition(0);
+        sleep(SHOOT_OFFSET);
+        launch.setPosition(0.8);
+        sleep(SHOOT_OFFSET);
+
+        drive.shooter.setVelocity(0);
+        sleep(ACTION_DELAY);
+
+
     }
     void shoot() {
 
